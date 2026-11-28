@@ -327,7 +327,8 @@ void hhkb_calibration_load(void) {
     const volatile hhkb_eeprom_cal_t *cal = (const volatile hhkb_eeprom_cal_t *)USER_EEPROM_ADDR;
 #ifdef HHKB_COMPACT_STORAGE
     hhkb_eeprom_cal_t restored = {0};
-    if (hhkb_compact_load_cal(&restored) || !hhkb_compact_legacy_allowed()) cal = &restored;
+    hhkb_compact_load_cal(&restored);
+    cal = &restored; // Legacy EEPROM is never imported; release upgrade requires a wipe.
 #endif
     for (uint8_t col = 0; col < MATRIX_COLS; ++col) {
         for (uint8_t row = 0; row < MATRIX_ROWS; ++row) {

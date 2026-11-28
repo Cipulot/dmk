@@ -15,6 +15,8 @@
 
 #include <string.h>
 
+const uint8_t keyboard_layout[][2] = LAYOUT;
+
 // Current highest active layer index (0..15)
 uint8_t layer = 0;
 
@@ -52,15 +54,10 @@ static inline uint8_t compute_active_layer(uint16_t state) {
  * @brief Initialize layer stack and pre-compute 2D row/col to flat key index mapping table.
  */
 void layers_init(void) {
-    typedef struct {
-        uint8_t r, c;
-    } RC;
-    static const RC layout[] = LAYOUT;
-    memset(layout_map, 0xFF, sizeof(layout_map));
-    for (size_t i = 0; i < sizeof(layout) / sizeof(layout[0]); i++) {
-        if (layout[i].r < NUM_ROWS && layout[i].c < NUM_COLS) {
-            layout_map[layout[i].r][layout[i].c] = (uint8_t)i;
-        }
+    memset(layout_map,0xFF,sizeof(layout_map));
+    for(size_t i=0;i<sizeof(keyboard_layout)/sizeof(keyboard_layout[0]);++i) {
+        uint8_t r=keyboard_layout[i][0],c=keyboard_layout[i][1];
+        if(r<NUM_ROWS && c<NUM_COLS) layout_map[r][c]=i;
     }
     layer_state = latched_state = 1;
     default_state = 0;

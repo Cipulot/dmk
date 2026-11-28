@@ -9,6 +9,7 @@
 #include "stm32l0xx.h"
 flash_t flash;
 flash_t *FLASH=&flash;
+const uint8_t keyboard_layout[][2]=LAYOUT;
 uint32_t dynamic_keymap[4][NUM_KEYS];
 vial_storage_t vial_storage;
 static uint32_t memory[1536];
@@ -44,14 +45,11 @@ static void defaults(void) {
 }
 static void reboot(void) {
     c_initialized=c_keymap_ready=c_cal_ready=c_pending=c_blocked=c_packing=false;
-    c_active=c_target=c_copy=-1; c_stage=c_copy_stage=c_cleanup=0;
-    c_generation=c_flags=0; c_status="Not saved";
+    c_active=c_target=-1; c_stage=0;
+    c_generation=0; c_status="Not saved";
     active_slot=target_slot=-1; generation=stage=0; pending=false;
     defaults();
-    if(!hhkb_compact_load_cal(&cal) && hhkb_compact_legacy_allowed()) {
-        hhkb_eeprom_cal_t *old=(void *)&memory[0x1500/4];
-        if(old->magic==USER_EEPROM_MAGIC) cal=*old;
-    }
+    hhkb_compact_load_cal(&cal);
     vial_keyboard_keymap_load(); hhkb_compact_save_cal(&cal);
 }
 static void poll(void) { for(unsigned i=0;i<2500;++i) vial_keyboard_keymap_poll(); }
@@ -155,31 +153,13 @@ int main(int argc, char **argv) {
     /* Unknown factory bytes and a different layout marker are never overwritten. */
     fresh();memory[0x480/4]=0x11223344;reboot();poll();assert(c_blocked && memory[0x480/4]==0x11223344);
     fresh();memory[0x1700/4]=C_OWNER^1;reboot();poll();assert(c_blocked);
-    /* Migrate newest DMK2 slot, and interrupt every EEPROM write, including
-     * consolidation, enrollment, compact commit and retirement of old bytes. */
-    fresh();cal.rt.act_pm=725;memcpy(&memory[0x1500/4],&cal,sizeof(cal));
-    legacy(0,4,41);legacy(1,5,42);
+    /* Legacy data must not be imported or changed before an explicit wipe. */
+    fresh();legacy(0,4,41);legacy(1,5,42);
+    cal.rt.act_pm=625;cal.crc16=hhkb_storage_crc16((uint8_t *)&cal.baseline,sizeof(cal)-8);memcpy(&memory[0x1500/4],&cal,sizeof(cal));
+    memcpy(saved,memory,sizeof(saved));reboot();poll();
+    assert(c_blocked && dynamic_keymap[0][0]==4 && cal.rt.act_pm==750 && !memcmp(saved,memory,sizeof(saved)));
+    assert(hhkb_storage_erase_early());reboot();poll();assert(c_active>=0);
     memcpy(saved,memory,sizeof(saved));
-    for(unsigned cut=0;cut<1100;++cut) {
-        memcpy(memory,saved,sizeof(saved));budget=-1;reboot();assert(dynamic_keymap[0][0]==42);
-        budget=cut;poll();budget=-1;reboot();assert(dynamic_keymap[0][0]==42 && cal.rt.act_pm==725);
-        poll();assert(c_active>=0 && *c_phys(0x1708)==C_DONE);
-        assert(*c_phys(0x700)==0 && *c_phys(0x1500)==0);
-    }
-#ifndef HHKB_JIS
-    /* DMK1's second slot overlaps neither the first compact slot nor its header. */
-    fresh();
-    uint32_t *v1=(void *)slot_v1(1);
-    v1[0]=SLOT_MAGIC_V1; v1[1]=7; v1[3]=SLOT_COMMIT;
-    for(unsigned i=0;i<V1_KEYMAP_WORDS;++i) v1[4+i]=i%65;
-    v1[2]=slot_v1_hash(v1);
-    uint32_t old_v1[1536]; memcpy(old_v1,memory,sizeof(memory));
-    for(unsigned cut=0;cut<500;++cut) {
-        memcpy(memory,old_v1,sizeof(memory));budget=-1;reboot();
-        budget=cut;poll();budget=-1;reboot();
-        assert(dynamic_keymap[3][59]==239%65);poll();assert(c_active>=0);
-    }
-#endif
     /* Reset is tombstoned before either snapshot is invalidated. Prepare two
      * committed generations so an interrupted reset cannot resurrect slot 1. */
     memcpy(memory,saved,sizeof(saved));budget=-1;reboot();poll();

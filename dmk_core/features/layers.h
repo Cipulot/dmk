@@ -11,6 +11,8 @@ extern "C" {
 
 // Current active layer index (maintained for backward compatibility)
 extern uint8_t layer;
+// One Flash-resident physical-coordinate table shared by core and board modules.
+extern const uint8_t keyboard_layout[][2];
 
 // Initialize the layer subsystem and layout mapping table
 void layers_init(void);

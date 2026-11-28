@@ -5,7 +5,6 @@
  * never retain EEPROM pointers. */
 bool hhkb_compact_load_cal(hhkb_eeprom_cal_t *cal);
 void hhkb_compact_save_cal(const hhkb_eeprom_cal_t *cal);
-bool hhkb_compact_legacy_allowed(void);
 bool hhkb_compact_writable(void);
 bool hhkb_compact_reset(void);
 /* Boot-time SW5+SW6 reset: no FreeRTOS or runtime storage initialization. */

@@ -1,4 +1,5 @@
-/* Included after the read-only legacy decoder. New writes never use its slots.
+/* Legacy helpers above are used for explicit ownership-checked erase only.
+ * Runtime loads/saves use compact snapshots exclusively.
  * Physical ranges are candidates from the PFU EEPROM map, not an assertion that
  * every factory revision leaves them free. Unknown contents block enrollment. */
 #include "hhkb_compact_storage.h"
@@ -28,13 +29,14 @@ _Static_assert(sizeof(hhkb_eeprom_cal_t) - 4U*MATRIX_ROWS*MATRIX_COLS == 36,
 _Static_assert(sizeof(vial_storage.data.combos) == 80 &&
                DYNAMIC_KEYMAP_MACRO_BUFFER_SIZE == (NUM_KEYS == 60 ? 224 : 64),
                "Bump the compact format before changing VIA capacities");
-static const uint8_t c_positions[NUM_KEYS][2] = LAYOUT;
+extern const uint8_t keyboard_layout[][2];
+#define c_positions keyboard_layout
 static uint32_t c_image[C_SLOT_BYTES / 4];
 static hhkb_eeprom_cal_t c_cal;
 static bool c_initialized, c_keymap_ready, c_cal_ready, c_pending, c_blocked;
-static int c_active = -1, c_target = -1, c_copy = -1;
-static unsigned c_stage, c_copy_stage, c_cleanup;
-static uint32_t c_generation, c_flags;
+static int c_active = -1, c_target = -1;
+static unsigned c_stage;
+static uint32_t c_generation;
 static hhkb_pack_state c_pack;
 static bool c_packing;
 _Static_assert(C_RAW_BYTES <= UINT16_MAX, "Compact codec indices must fit");
@@ -91,34 +93,13 @@ static bool c_owner_valid(void) {
         (owned >> 4) <= sizeof(hhkb_eeprom_cal_t)/4 &&
         !((owned & 3U) && (owned & 12U));
 }
-static size_t c_legacy_cal_size(void) {
-    const volatile hhkb_eeprom_cal_t *p = (const volatile void *)c_phys(0x1500);
-    return hhkb_settings_owned_size(p->magic, USER_EEPROM_MAGIC,
-        p->version == USER_EEPROM_VERSION ? sizeof(*p) : offsetof(hhkb_eeprom_cal_t, curve),
-        offsetof(hhkb_eeprom_cal_t, rt), (offsetof(hhkb_eeprom_cal_t, scan_rate)+3U)&~3U,
-        offsetof(hhkb_eeprom_cal_t, curve));
-}
-static uint32_t c_legacy_flags(void) {
-    uint32_t f = 0;
-    bool a = valid(0), b = valid(1);
-    if (a || b) { f |= 1; if (b) f |= 2; }
-    else { if (valid_v1(0)) f |= 4; if (valid_v1(1)) f |= 8; }
-    size_t bytes = c_legacy_cal_size();
-    if (bytes != SIZE_MAX) f |= (uint32_t)(bytes / 4) << 4;
-    return f;
-}
-static bool c_legacy_contains(unsigned offset, uint32_t f) {
-    for (unsigned n = 0; n < 2; ++n) {
-        if ((f & (1U << n)) && offset >= 0x600 + n*SLOT_WORDS*4 && offset < 0x600+(n+1)*SLOT_WORDS*4) return true;
-        if ((f & (4U << n)) && offset >= 0x600 + n*V1_SLOT_WORDS*4 && offset < 0x600+(n+1)*V1_SLOT_WORDS*4) return true;
-    }
-    return false;
-}
 static void c_init_once(void) {
     if (c_initialized) return;
     c_initialized = true;
     if (c_owner_valid()) {
-        c_flags = *c_phys(0x1704) & 0xffff;
+        if((*c_phys(0x1704)&0xffff) && *c_phys(0x1708)!=C_DONE) {
+            c_blocked=true;c_status="Wipe old DMK data";return;
+        }
         if (*c_phys(0x1708) == C_RESET) {
             /* A reset tombstone wins over every older committed snapshot. */
             c_status = "Reset pending"; return;
@@ -131,16 +112,13 @@ static void c_init_once(void) {
         }
         return;
     }
-    c_flags = c_legacy_flags();
-    uint32_t expected_flags = c_flags | ((uint32_t)(uint16_t)~c_flags << 16);
-    /* Permit an interrupted enrollment header, never arbitrary nonzero words. */
-    if ((*c_phys(0x1700) != 0 && *c_phys(0x1700) != C_OWNER) ||
-        (*c_phys(0x1704) != 0 && *c_phys(0x1704) != expected_flags) || *c_phys(0x1708) != 0) c_blocked = true;
-    for (unsigned s = 0; s < 2; ++s) for (unsigned w = 0; w < C_SLOT_BYTES/4; ++w) {
-        volatile uint32_t *p = c_word(s,w);
-        unsigned off = (uintptr_t)p - HHKB_EEPROM_BASE;
-        if (*p && !c_legacy_contains(off,c_flags)) c_blocked = true;
-    }
+    // No import or consolidation: an old record requires an explicit wipe.
+    // A partial blank enrollment may contain only our magic and zero flags.
+    if((*c_phys(0x1700)!=0 && *c_phys(0x1700)!=C_OWNER) ||
+       (*c_phys(0x1704)!=0 && *c_phys(0x1704)!=0xffff0000U) || *c_phys(0x1708)!=0)
+        c_blocked=true;
+    for(unsigned w=0;w<2*C_SLOT_BYTES/4;++w) if(*c_word(0,w)) c_blocked=true;
+    if(*c_phys(0x1500)) c_blocked=true;
     if (c_blocked) c_status = "Occupied: not saved";
 }
 /* Matrix initialization and VIA initialization can run in different tasks.
@@ -150,10 +128,6 @@ static void c_init(void) {
     HHKB_STORAGE_LOCK();
     c_init_once();
     HHKB_STORAGE_UNLOCK();
-}
-bool hhkb_compact_legacy_allowed(void) {
-    c_init();
-    return c_active < 0 && (!c_owner_valid() || *c_phys(0x1708) == 0);
 }
 bool hhkb_compact_writable(void) { c_init(); return !c_blocked; }
 const char *hhkb_compact_status(void) { c_init(); return c_status; }
@@ -228,7 +202,7 @@ void vial_keyboard_keymap_load(void) {
         c_decode_range(0,sizeof(dynamic_keymap),dynamic_keymap);
         c_decode_range(sizeof(dynamic_keymap),sizeof(vial_storage.data.combos),vial_storage.data.combos);
         c_decode_range(sizeof(dynamic_keymap)+sizeof(vial_storage.data.combos),sizeof(vial_storage.data.macro_buffer),vial_storage.data.macro_buffer);
-    } else if(hhkb_compact_legacy_allowed()) legacy_keymap_load();
+    }
     c_keymap_ready=true; if(c_active<0) c_pending=true;
 }
 void vial_keyboard_keymap_save(void) { c_packing=false; c_pending=true; if(!c_blocked) c_status="Pending"; }
@@ -294,28 +268,10 @@ static bool c_build(void) {
     c_image[3]=c_hash(c_image); c_image[4]=SLOT_COMMIT;
     return true;
 }
-/* Retire only the old DMK bytes overlapping stock tables, after the first
- * compact snapshot is committed. Keep our new fragmented storage intact. */
-static bool c_cleanup_poll(void) {
-    if(*c_phys(0x1708)!=0) return true;
-    while(c_cleanup<0x1200/4) {
-        unsigned off=0x600+4*c_cleanup++;
-        bool owned=(off>=0x700 && off<0xd00 && c_legacy_contains(off,c_flags)) ||
-            (off>=0x1500 && off<0x1500+4*((c_flags>>4)&255));
-        if(owned) {
-            if(!write_word(c_phys(off),0)) { --c_cleanup; c_write_failed("cleanup"); }
-            return false;
-        }
-    }
-    if(!write_word(c_phys(0x1708),C_DONE)) { c_write_failed("cleanup done"); return false; }
-    if(!c_pending && c_target<0) c_status="Saved (compressed)";
-    return true;
-}
 bool hhkb_compact_reset(void) {
-    c_init(); if(c_blocked) { HHKB_EEPROM_LOG("reset blocked"); return false; }
+    c_init(); if(c_blocked) return hhkb_storage_erase_early();
     if(!c_owner_valid()) {
         /* Preserve unknown factory data and let normal enrollment handle blank EEPROM. */
-        if(c_flags) { HHKB_EEPROM_LOG("reset blocked: foreign data"); return false; }
         c_pending=c_packing=false;
         return true;
     }
@@ -341,9 +297,12 @@ void vial_keyboard_keymap_poll(void) {
     if(c_blocked || !c_keymap_ready || !c_cal_ready) return;
     if(c_active>=0 && *c_phys(0x1708)==C_RESET) {
         if(!write_word(c_phys(0x1708),0)) c_write_failed("reset clear");
-        c_cleanup=0; return;
+        return;
     }
-    if(c_active>=0 && !c_cleanup_poll()) return;
+    if(c_active>=0 && *c_phys(0x1708)==0) {
+        if(!write_word(c_phys(0x1708),C_DONE)) c_write_failed("done");
+        return;
+    }
     if(c_target<0) {
         if(!c_pending && !c_packing) return;
         if(c_active<0 && c_owner_valid() && *c_phys(0x1708)==C_RESET) {
@@ -355,25 +314,11 @@ void vial_keyboard_keymap_poll(void) {
         }
         c_pending=false;
         if(!c_build()) return;
-        /* Before overwriting the old second slot, commit its newest contents in
-         * legacy slot zero. The source and destination do not overlap (DMK2). */
-        if(!c_owner_valid()) {
-            if(valid(1) && (!valid(0) || (int32_t)(slot(1)[1]-slot(0)[1])>0)) c_copy=1;
-        }
         c_target=c_active<0?0:1-c_active; c_stage=0; c_status="Saving";
         HHKB_EEPROM_LOG("saving slot=%d gen=%lu (%lu B)", c_target, (unsigned long)c_image[1], (unsigned long)c_image[2]);
     }
-    if(c_copy>=0) {
-        unsigned off; uint32_t value;
-        if(c_copy_stage==0) { off=3; value=0; }
-        else if(c_copy_stage<=SLOT_WORDS) { off=c_copy_stage-1; value=off==3?0:slot(1)[off]; }
-        else { off=3; value=SLOT_COMMIT; }
-        if(!write_word((volatile uint32_t *)slot(0)+off,value)) { c_write_failed("legacy copy"); return; }
-        if(++c_copy_stage>SLOT_WORDS+1) { c_copy=-1; c_flags|=1; }
-        return;
-    }
     if(!c_owner_valid()) {
-        uint32_t flags=c_flags|((uint32_t)(uint16_t)~c_flags<<16);
+        uint32_t flags=0xffff0000U;
         if(!write_word(c_phys(0x1704),flags) || !write_word(c_phys(0x1700),C_OWNER)) { c_write_failed("owner"); return; }
     }
     unsigned off;
