@@ -53,7 +53,7 @@ At 1000 Hz the SOF controller estimates scan-and-publication time, adds `HHKB_SO
 - **Columns:** Two 74HC4051 analog multiplexers. `PC6` selects U1 (columns 0–7), `PB15` selects U2 (columns 8–14); `PB12`, `PB13`, `PB14` drive channel addresses.
 - **Analog frontend:** `PC14` sensor power, `PC7` op-amp enable, `PC8` C57 capacitor discharge, `PA1` ADC input (`ADC_IN1`).
 - **DIP switches:** `PA3`–`PA7` and `PC4`, active low.
-- **LEDs:** `PA8` and `PA9` (Classic and Hybrid). [VIA](https://www.usevia.app/) assigns Off, Debug heartbeat, Caps Lock, Fn layer, or System 2 independently; by default PA8 indicates Caps Lock, PA9 indicates Fn layer.
+- **LEDs:** `PA8` and `PA9` (Classic and Hybrid). [VIA](https://www.usevia.app/) assigns Off, Debug heartbeat, Caps Lock, Fn layer, or DF(2) independently; by default PA8 indicates Caps Lock, PA9 indicates Fn layer.
 
 ## Factory Data and Calibration
 
@@ -61,7 +61,7 @@ Factory classic-mode thresholds are read from the keyboard's EEPROM at startup. 
 
 ## DIP Switches
 
-SW1–SW5 are read by firmware but have no hardcoded actions in DMK. SW6 triggers recovery into Bank 1. To select base/Fn layer pairs, use VIA System 1 and System 2 keycodes. Fn + Tab toggles Caps Lock.
+SW1–SW5 are read by firmware but have no hardcoded actions in DMK. SW6 triggers recovery into Bank 1. To select base/Fn layer pairs, use VIA DF(0) and DF(2) keycodes. Fn + Tab toggles Caps Lock.
 
 ## Hybrid Only: Transport, Profiles, and Power
 

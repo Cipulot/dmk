@@ -710,6 +710,8 @@ typedef struct {
 #define DMK_HT_LEGACY 0x04000000u
 #define DMK_HT_MOD_LEGACY 0x40000000u // Read-only compatibility with early dev Mod-Tap records
 #define DMK_HT 0x80000000u
+#define DMK_TO 0x0C000000
+#define DMK_DF 0x0D000000
 #define DMK_TG 0x08000000
 #define DMK_MO 0x10000000
 
@@ -760,6 +762,8 @@ typedef struct {
 #define DMK_IS_HT(key) \
     ((((key) & 0xF0000000u) == DMK_HT) || (((key) & 0xFF000000u) == DMK_HT_LEGACY) || \
      (((key) & 0xFF000000u) == DMK_HT_MOD_LEGACY))
+#define TO(layer) (DMK_TO | (layer))
+#define DF(layer) (DMK_DF | (layer))
 #define TG(layer) (DMK_TG | (layer))
 #define MO(layer) (DMK_MO | (layer))
 

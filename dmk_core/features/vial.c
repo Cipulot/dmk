@@ -156,6 +156,9 @@ static uint8_t from_via_mods(uint8_t via_mod) {
 // Helper function to map DMK 32-bit keycodes to VIA 16-bit keycodes
 uint16_t to_via_keycode(uint32_t dmk_key) {
 #ifdef HHKB_GRAVE_ESCAPE
+    if(dmk_key == 0x7e00 || dmk_key == 0x7e01) return 0;
+#endif
+#ifdef HHKB_GRAVE_ESCAPE
     if (dmk_key == 0x7c16u) return 0x7c16u;
 #endif
     if ((dmk_key & 0xFF000000u) == DMK_OS || (dmk_key & 0xFF000000u) == DMK_MK) {
@@ -213,6 +216,10 @@ uint16_t to_via_keycode(uint32_t dmk_key) {
     if ((dmk_key & 0xFF000000) == DMK_TG)
         return 0x5260 | (dmk_key & 0xFF);
 
+    // VIA/QMK ranges from bf39l's PR #26; reject unsupported layers, never wrap.
+    if ((dmk_key & 0xFF000000) == DMK_TO || (dmk_key & 0xFF000000) == DMK_DF)
+        return (dmk_key & 0xFFFFFF) < 16 ?
+            (((dmk_key & 0xFF000000) == DMK_TO ? 0x5200 : 0x5240) | (dmk_key & 15)) : 0;
     if (DMK_IS_HT(dmk_key)) {
         uint32_t hold, tap; uint8_t ms;
         if (!ht_decode(dmk_key, &hold, &tap, &ms) || tap > 0xFF) return 0;
@@ -242,6 +249,9 @@ uint16_t to_via_keycode(uint32_t dmk_key) {
 
 // Helper function to map VIA 16-bit keycodes to DMK 32-bit keycodes
 uint32_t from_via_keycode(uint16_t via_key) {
+#ifdef HHKB_GRAVE_ESCAPE
+    if(via_key == 0x7e00 || via_key == 0x7e01) return K_NULL;
+#endif
 #ifdef HHKB_GRAVE_ESCAPE
     if (via_key == 0x7c16u) return 0x7c16u;
 #endif
@@ -306,6 +316,10 @@ uint32_t from_via_keycode(uint16_t via_key) {
     if (via_key >= 0x5280 && via_key <= 0x529F)
         return OS_LAYER(via_key & 0x0F);
 
+    if(via_key >= 0x5200 && via_key <= 0x521f)
+        return (via_key & 31)<16 ? TO(via_key & 15) : K_NULL;
+    if(via_key >= 0x5240 && via_key <= 0x525f)
+        return (via_key & 31)<16 ? DF(via_key & 15) : K_NULL;
     // Layer Toggle
     if (via_key >= 0x5260 && via_key <= 0x527F) {
         return TG(via_key & 0x0F);

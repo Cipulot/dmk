@@ -286,3 +286,7 @@ Old EEPROM HT records and the short-lived dev modifier-tap records remain readab
 Mixed left/right modifier masks work internally, but VIA cannot represent them: these assignments read as unassigned instead of changing sides. Configure them in source and do not overwrite them through VIA. `OS(MOD_...)` recognizes modifier spelling; numeric layer syntax remains compatible. Prefer explicit `OS_MOD(mask)` and `OS_LAYER(layer)`.
 
 Momentary layers (`MO`, HT and One-Shot) retain separate hold counts from persistent `TG`/`layers_set_state` bits. Releasing one owner leaves other holds and toggles active. Ordinary 6KRO keys also remain pressed until their last owner releases. Use `layers_get_latched_state()` when editing persistent state without latching temporary holds. Repository configs use explicit `HT(MO(layer), tap)`; bare numeric hold layers remain supported as legacy syntax.
+
+### Default and target layers
+
+`DF(n)` selects the default layer for this session. `TO(n)` replaces latched overlays with layer n. Both preserve held MO/HT/One-Shot owners. Transparent overlay keys fall through to the default layer. Valid indices are 0–15; these actions do not save EEPROM and do not consume pending One-Shot modifiers. VIA/Vial use standard DF/TO encodings. TT is unsupported. Inspired by bf39l’s [PR #26](https://github.com/aroum/dmk/pull/26), MIT.

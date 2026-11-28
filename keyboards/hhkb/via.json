@@ -4,14 +4,14 @@
   "productId": "0x4014",
   "customKeycodes": [
     {
-      "name": "System 1",
-      "title": "Select System 1",
-      "shortName": "Sys 1"
+      "name": "Reserved 0",
+      "title": "Unused; assign DF from Layers",
+      "shortName": "Unused"
     },
     {
-      "name": "System 2",
-      "title": "Select System 2",
-      "shortName": "Sys 2"
+      "name": "Reserved 1",
+      "title": "Unused; assign DF from Layers",
+      "shortName": "Unused"
     },
     {
       "name": "BT Select 1",
@@ -2590,7 +2590,7 @@
                   3
                 ],
                 [
-                  "System 2",
+                  "Default layer 2",
                   4
                 ]
               ],
@@ -2621,7 +2621,7 @@
                   3
                 ],
                 [
-                  "System 2",
+                  "Default layer 2",
                   4
                 ]
               ],

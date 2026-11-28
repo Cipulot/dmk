@@ -21,6 +21,7 @@ uint8_t layer = 0;
 // Layer state bitmask (bit 0 is active by default for base layer)
 static uint16_t layer_state = 1;
 static uint16_t latched_state = 1;
+static uint16_t default_state, overlay_state;
 static uint8_t held_refs[16];
 
 // Flat key index lookup table: layout_map[row][col] = flat layout index or 0xFF (unmapped)
@@ -62,6 +63,8 @@ void layers_init(void) {
         }
     }
     layer_state = latched_state = 1;
+    default_state = 0;
+    overlay_state = 1;
     memset(held_refs, 0, sizeof(held_refs));
     layer = 0;
 }
@@ -94,6 +97,8 @@ uint16_t layers_get_state(void) {
 static void publish_layers(void) {
     uint16_t state = latched_state;
     for (unsigned i = 0; i < 16; ++i) if (held_refs[i]) state |= 1U << i;
+    overlay_state = state;
+    state |= default_state;
     if (!state) state = 1;
     if (state == layer_state) return;
     layer_state = state;
@@ -107,6 +112,21 @@ uint16_t layers_get_latched_state(void) { return latched_state; }
 // Absolute persistent state; momentary owners remain effective until released.
 void layers_set_state(uint16_t state) {
     latched_state = state;
+    publish_layers();
+}
+
+// TO/DF integration inspired by bf39l, PR #26 (MIT); share publication and owners.
+uint16_t layers_get_default(void) { return default_state; }
+void layers_set_default(uint8_t index) {
+    if(index>=16) return;
+    // Replace the old base bit, preserving TG and held MO/HT/One-Shot owners.
+    if(!default_state) latched_state &= ~1U;
+    default_state = 1U << index;
+    publish_layers();
+}
+void layers_move(uint8_t index) {
+    if(index>=16) return;
+    latched_state = 1U << index;
     publish_layers();
 }
 
@@ -177,9 +197,9 @@ uint32_t layers_lookup_key(uint8_t row, uint8_t col) {
         return 0;
     }
 
-    uint8_t top_layer = compute_active_layer(layer_state);
-    for (int l = top_layer; l >= 0; l--) {
-        if (!(layer_state & (1U << l))) {
+    uint16_t lookup_state = overlay_state ? overlay_state : (default_state ? default_state : 1U);
+    for (int l = compute_active_layer(lookup_state); l >= 0; l--) {
+        if (!(lookup_state & (1U << l))) {
             continue;
         }
         uint32_t key = 0;
@@ -194,5 +214,7 @@ uint32_t layers_lookup_key(uint8_t row, uint8_t col) {
             return key;
         }
     }
+    if(default_state && lookup_state != default_state)
+        return layers_lookup_key_on_layer(compute_active_layer(default_state),row,col);
     return 0;
 }

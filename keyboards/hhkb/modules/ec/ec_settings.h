@@ -96,8 +96,6 @@ void hhkb_set_hold_tap_setting(uint8_t id, uint8_t value);
 uint16_t hold_tap_config_value(uint8_t id);
 uint8_t hhkb_get_led_mode(uint8_t index);
 void hhkb_set_led_mode(uint8_t index, uint8_t mode);
-uint8_t hhkb_get_system(void);
-void hhkb_set_system(uint8_t system);
 uint8_t hhkb_rt_get(uint8_t id);
 void hhkb_rt_set(uint8_t id, uint8_t value);
 void hhkb_set_actuation_point_pct(uint8_t pct);

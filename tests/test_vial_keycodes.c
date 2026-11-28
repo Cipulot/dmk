@@ -34,6 +34,14 @@ uint32_t from_via_keycode(uint16_t via_key);
 void vial_process_packet(uint8_t const *request, uint8_t *response);
 
 int main(void) {
+    assert(from_via_keycode(0x7e00)==K_NULL && to_via_keycode(0x7e01)==0);
+    for(unsigned i=0;i<16;++i){
+        assert(from_via_keycode(0x5200|i)==TO(i));assert(to_via_keycode(TO(i))==(0x5200|i));
+        assert(from_via_keycode(0x5240|i)==DF(i));assert(to_via_keycode(DF(i))==(0x5240|i));
+    }
+    assert(from_via_keycode(0x5210)==K_NULL && from_via_keycode(0x525f)==K_NULL);
+    assert(from_via_keycode(0x52c0)==K_NULL && to_via_keycode(DF(16))==0);
+
     assert(to_via_keycode(MK(MOD_LCTRL|MOD_RSHIFT,K_A))==0);
     assert(to_via_keycode(HT(MK(MOD_LCTRL|MOD_RSHIFT,K_NULL),K_A))==0);
     assert(to_via_keycode(OS_MOD(MOD_LCTRL|MOD_RSHIFT))==0);

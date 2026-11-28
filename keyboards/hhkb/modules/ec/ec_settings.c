@@ -92,7 +92,7 @@ static uint8_t s_quick_tap_10ms = 15;    // 150 ms
 static uint8_t s_permissive_hold = 1;
 static uint8_t s_tap_preferred = 0;
 static uint8_t s_led_mode[2] = {2, 3};
-static uint8_t s_system = 0;
+
 
 static volatile bool s_settings_dirty = false;
 static volatile TickType_t s_settings_dirty_time = 0;
@@ -279,7 +279,6 @@ void hhkb_calibration_save_to_eeprom(void) {
                 (s_oversampling_requested ? 4 : 0) |
                 (s_custom_calibration ? 8 : 0) |
                 ((s_debug_flags & DEBUG_FLAG_TOPRE) ? 16 : 0) |
-                ((s_system & 1) << 5) |
                 ((s_led_mode[0] & 3) << 6);
 
     memcpy(cal.baseline, s_cal_baseline, sizeof(cal.baseline));
@@ -376,7 +375,6 @@ void hhkb_calibration_load(void) {
             s_tap_preferred = (cal->flags & 2) != 0;
             s_oversampling_requested = (cal->flags & 4) != 0;
             s_custom_calibration = (cal->flags & 8) != 0;
-            s_system = (cal->flags >> 5) & 1;
             for (unsigned i = 0; i < 2; ++i) {
                 uint8_t led = cal->led_mode[i] & 0x0f;
                 if (led <= 4) s_led_mode[i] = led;
@@ -633,11 +631,6 @@ uint16_t hold_tap_config_value(uint8_t id) {
 uint8_t hhkb_get_led_mode(uint8_t index) { return index < 2 ? s_led_mode[index] : 0; }
 void hhkb_set_led_mode(uint8_t index, uint8_t mode) {
     if (index < 2 && mode <= 4) { s_led_mode[index] = mode; hhkb_settings_mark_dirty(); }
-}
-
-uint8_t hhkb_get_system(void) { return s_system; }
-void hhkb_set_system(uint8_t system) {
-    if (system <= 1 && s_system != system) { s_system = system; hhkb_settings_mark_dirty(); }
 }
 
 uint8_t hhkb_rt_get(uint8_t id) {

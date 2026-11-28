@@ -8,7 +8,7 @@
 #include "oneshot.h"
 
 TickType_t g_mock_ticks;
-const uint32_t keymap[3][6] = {{K_A}, {K_B}, {K_C}};
+const uint32_t keymap[3][6] = {{K_A}, {K_B}, {K_C,K_E}};
 const size_t keymap_layers = 3;
 static unsigned mod_refs[8];
 void macros_run_layer_triggers(uint8_t l) {(void)l;}
@@ -86,7 +86,26 @@ static void oneshot_lifetimes(void) {
     assert(layers_get_state()==1);
     clean();
 }
+static void df_to_sequences(void){
+ clean();layers_set_default(2);assert(layers_lookup_key(0,0)==K_C);
+ layers_on(1);assert(layers_lookup_key(0,0)==K_B);
+ layers_set_default(0);assert(layers_lookup_key(0,0)==K_B);
+ layers_off(1);assert(layers_lookup_key(0,0)==K_A);
+ layers_set_default(2);layers_move(0);assert(layers_lookup_key(0,0)==K_A);
+ layers_set_default(16);assert(layers_get_default()==4);
+ layers_move(1);assert(layers_lookup_key(0,1)==K_E); // transparent overlay falls back to DF(2)
+ layers_on(2);layers_move(0);assert(layers_lookup_key(0,0)==K_C);
+ layers_off(2);assert(layers_lookup_key(0,0)==K_A);
+ layers_set_state(0);assert(layers_lookup_key(0,0)==K_C); // DF survives TO and overlays
+ layers_toggle(1);layers_set_default(0);assert(layers_lookup_key(0,0)==K_B);
+ layers_toggle(1);assert(layers_lookup_key(0,0)==K_A);
+ layers_set_default(2);layers_toggle(2);layers_set_default(0);
+ assert(layers_lookup_key(0,0)==K_C);layers_toggle(2);assert(layers_lookup_key(0,0)==K_A);
+ assert(!oneshot_should_consume(DF(2)) && !oneshot_should_consume(TO(0)));
+ clean();
+}
 int main(void) {
+ df_to_sequences();
     layer_sequences();oneshot_lifetimes();
     puts("runtime ownership: model sequences, OSL retap, lazy refs, rollover and exhaustion passed");
 }

@@ -27,7 +27,7 @@ static bool hhkb_hybrid_output_bluetooth(void){return battery;}
 static bool hhkb_hybrid_powered(void){return powered;}
 static uint8_t hhkb_get_led_mode(unsigned i){(void)i;return 2;}
 static uint16_t layers_get_state(void){return 1;}
-static uint8_t hhkb_get_system(void){return 0;}
+static uint16_t layers_get_default(void){return 1;}
 static void hal_gpio_put(unsigned pin,bool on){output[pin]=on;}
 static bool hhkb_hybrid_led_override(unsigned i,uint32_t now,bool *on){
  (void)i;(void)now;if(!sleeping && powered)return false;*on=false;return true;

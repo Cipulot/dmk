@@ -210,6 +210,15 @@ static void process_matrix_action(uint8_t row, uint8_t col, uint32_t key, bool p
         return;
     }
 
+    // PR #26 by bf39l inspired VIA TO/DF support; no tap-toggle state.
+    if ((key & 0xFF000000) == DMK_TO || (key & 0xFF000000) == DMK_DF) {
+        if(pressed && (key & 0xFFFFFF) < 16) {
+            if((key & 0xFF000000) == DMK_DF) layers_set_default(key & 15);
+            else layers_move(key & 15);
+        }
+        return;
+    }
+
     // 5. Modified Key (e.g. LSFT(KC_A), LCTL(KC_C))
     if ((key & 0xFF000000) == DMK_MK) {
         uint8_t mod_mask = (uint8_t)((key >> 8) & 0xFF);

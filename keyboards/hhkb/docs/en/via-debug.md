@@ -71,7 +71,7 @@ Vial uses `vial.json` and supports runtime keymap editing. It does not support c
 
 ## Select a system
 
-With the updated firmware and `via.json`, assign **System 1** or **System 2** in the VIA keycode picker. Through **Any**, use `0x7E00` for System 1 and `0x7E01` for System 2. System 1 uses layers 0 and 1, and System 2 uses layers 2 and 3. Place each selector where it can be reached from the other system.
+Assign **DF(0)** or **DF(2)** from VIA/Vial Layers (Any: `0x5240` / `0x5242`). DF selects a session-only default layer; held MO/HT/One-Shot layers and toggled overlays retain priority. TO selects one overlay and clears other latched overlays, preserving held owners. Transparent keys fall back to DF. Both support layers 0–15; unsupported 16–31 and TT are rejected. System 1/2 actions are removed; replace old assignments. The former System 2 LED mode now indicates DF(2). Selections are not saved across restart. Bluetooth custom keycode IDs retain their positions through two unused reserved slots. Adapted from the TO/DF proposal by [bf39l, PR #26](https://github.com/aroum/dmk/pull/26) under the repository MIT license; TT was not imported.
 
 ## HHKB Settings Menu Reference
 
@@ -152,7 +152,7 @@ Outside an explicit calibration session, baseline and peak remain fixed: runtime
   - `1`: Debug heartbeat (1 Hz blink)
   - `2`: Caps Lock indicator
   - `3`: Fn layer activity indicator
-  - `4`: System 2 profile indicator
+  - `4`: DF(2) indicator
 - **Orange LED (PA9):** Identical 5 modes for the orange LED.
 
 ### 5. Power
@@ -345,7 +345,6 @@ Assign these after loading [via.json](../../via.json) in VIA:
 - **BT Next** (`0x7E0F`): select the next Bluetooth profile.
 - **BT / USB** (`0x7E10`): switch between the last Bluetooth profile and USB.
 
-**System 1** and **System 2** (`0x7E00`, `0x7E01`) are also present on Classic: they choose layer pairs, not Bluetooth profiles.
 
 ### VIA settings unique to Hybrid
 
