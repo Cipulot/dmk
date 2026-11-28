@@ -21,7 +21,7 @@ uint8_t layer = 0;
 // Layer state bitmask (bit 0 is active by default for base layer)
 static uint16_t layer_state = 1;
 static uint16_t latched_state = 1;
-static uint16_t default_state, overlay_state;
+static uint16_t default_state, overlay_state, held_state;
 static uint8_t held_refs[16];
 
 // Flat key index lookup table: layout_map[row][col] = flat layout index or 0xFF (unmapped)
@@ -65,6 +65,7 @@ void layers_init(void) {
     layer_state = latched_state = 1;
     default_state = 0;
     overlay_state = 1;
+    held_state = 0;
     memset(held_refs, 0, sizeof(held_refs));
     layer = 0;
 }
@@ -95,8 +96,7 @@ uint16_t layers_get_state(void) {
  * @param state New 16-bit layer bitmask.
  */
 static void publish_layers(void) {
-    uint16_t state = latched_state;
-    for (unsigned i = 0; i < 16; ++i) if (held_refs[i]) state |= 1U << i;
+    uint16_t state = latched_state | held_state;
     overlay_state = state;
     state |= default_state;
     if (!state) state = 1;
@@ -133,12 +133,14 @@ void layers_move(uint8_t index) {
 void layers_on(uint8_t layer_idx) {
     if (layer_idx >= 16) return;
     if (held_refs[layer_idx] != UINT8_MAX) ++held_refs[layer_idx];
+    held_state |= 1U << layer_idx;
     publish_layers();
 }
 
 void layers_off(uint8_t layer_idx) {
     if (layer_idx >= 16) return;
     if (held_refs[layer_idx]) --held_refs[layer_idx];
+    if (!held_refs[layer_idx]) held_state &= ~(1U << layer_idx);
     publish_layers();
 }
 
@@ -169,19 +171,16 @@ int16_t keyboard_get_flat_key_index(uint8_t row, uint8_t col) {
  * @param col Matrix column.
  * @return Keycode defined on the layer, or 0 if out of bounds.
  */
-uint32_t layers_lookup_key_on_layer(uint8_t layer_idx, uint8_t row, uint8_t col) {
-    int16_t ki = keyboard_get_flat_key_index(row, col);
-    if (ki < 0 || ki >= (int16_t)NUM_KEYS) {
-        return 0;
-    }
+static uint32_t lookup_index(uint8_t layer_idx, unsigned ki) {
 #ifdef VIAL
     return layer_idx < DYNAMIC_KEYMAP_MAX_LAYERS ? dynamic_keymap[layer_idx][ki] : 0;
 #else
-    if (layer_idx < keymap_layers) {
-        return keymap[layer_idx][ki];
-    }
-    return 0;
+    return layer_idx < keymap_layers ? keymap[layer_idx][ki] : 0;
 #endif
+}
+uint32_t layers_lookup_key_on_layer(uint8_t layer_idx,uint8_t row,uint8_t col) {
+    int16_t ki=keyboard_get_flat_key_index(row,col);
+    return ki>=0 && ki<NUM_KEYS ? lookup_index(layer_idx,ki) : 0;
 }
 
 /**
@@ -202,19 +201,12 @@ uint32_t layers_lookup_key(uint8_t row, uint8_t col) {
         if (!(lookup_state & (1U << l))) {
             continue;
         }
-        uint32_t key = 0;
-#ifdef VIAL
-        if (l < DYNAMIC_KEYMAP_MAX_LAYERS) key = dynamic_keymap[l][ki];
-#else
-        if ((size_t)l < keymap_layers) {
-            key = keymap[l][ki];
-        }
-#endif
+        uint32_t key=lookup_index(l,ki);
         if (key != 0 && key != K_TRNS) {
             return key;
         }
     }
     if(default_state && lookup_state != default_state)
-        return layers_lookup_key_on_layer(compute_active_layer(default_state),row,col);
+        return lookup_index(compute_active_layer(default_state),ki);
     return 0;
 }

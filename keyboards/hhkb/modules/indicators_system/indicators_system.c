@@ -12,10 +12,18 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* One owner for PA8 and PA9: off, heartbeat, Caps Lock, Fn, system 2. */
+/* One owner for PA8 and PA9: off, heartbeat, Caps Lock, Fn, DF(2). */
 static const pin_t led_pins[2] = { A8, A9 };
 static bool caps_lock;
 
+static bool indicator_inputs_changed(void) {
+    static uint16_t previous=UINT16_MAX;
+    uint16_t state=(layers_get_state() & 15) | (hhkb_get_led_mode(0)<<4) |
+        (hhkb_get_led_mode(1)<<7) | (caps_lock<<10) | (tud_mounted()<<11) |
+        (tud_suspended()<<12) | (keyboard_power_saving_enabled()<<13) |
+        ((layers_get_default() & 4)<<12);
+    bool changed=state!=previous; previous=state; return changed;
+}
 TickType_t keyboard_platform_timeout(void) {
 #ifdef HHKB_HYBRID
     return pdMS_TO_TICKS(hhkb_hybrid_indicator_wait_ms(xTaskGetTickCount()));
@@ -23,7 +31,13 @@ TickType_t keyboard_platform_timeout(void) {
     return pdMS_TO_TICKS(250);
 #endif
 }
+static TickType_t indicator_updated;
+static bool indicator_valid;
 void keyboard_platform_tick(TickType_t now) {
+    bool changed=indicator_inputs_changed();
+    if(indicator_valid && !changed &&
+       (TickType_t)(now-indicator_updated)<keyboard_platform_timeout()) return;
+    indicator_valid=true; indicator_updated=now;
     bool heartbeat = ((now / pdMS_TO_TICKS(500)) & 1U) != 0;
     bool mounted = tud_mounted();
     bool suspended = tud_suspended();
@@ -57,7 +71,7 @@ void keyboard_platform_tick(TickType_t now) {
 }
 
 #ifdef HHKB_HYBRID
-void hhkb_hybrid_refresh_indicators(void) { keyboard_platform_tick(xTaskGetTickCount()); }
+void hhkb_hybrid_refresh_indicators(void) { indicator_valid=false; keyboard_platform_tick(xTaskGetTickCount()); }
 #endif
 
 static void hhkb_hid_led_change(uint8_t state) { caps_lock = (state & 0x02) != 0; }

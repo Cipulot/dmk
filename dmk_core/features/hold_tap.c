@@ -60,13 +60,10 @@ static void send_hold_action(uint32_t key, bool pressed) {
     uint32_t hold, tap; uint8_t ms;
     if (ht_decode(key, &hold, &tap, &ms)) send_action(hold, pressed);
 }
-static void send_tap_action(uint32_t key, bool pressed) {
-    uint32_t hold, tap; uint8_t ms;
-    if (ht_decode(key, &hold, &tap, &ms)) {
-        if (pressed && tap <= 0xFF) oneshot_send_lazy_mods();
-        send_action(tap, pressed);
-        if (!pressed && tap <= 0xFF) oneshot_on_tap_key();
-    }
+static void send_tap_action(uint32_t tap, bool pressed) {
+    if (pressed && tap <= 0xFF) oneshot_send_lazy_mods();
+    send_action(tap, pressed);
+    if (!pressed && tap <= 0xFF) oneshot_on_tap_key();
 }
 
 static void activate_hold(HTTracker *tracker) {
@@ -78,7 +75,7 @@ static void activate_hold(HTTracker *tracker) {
 }
 
 void hold_tap_permissive_resolve(uint8_t except_row, uint8_t except_col) {
-    if (!hold_tap_config_value(1) || hold_tap_config_value(2)) return;
+    if (!s_active_ht_count || !hold_tap_config_value(1) || hold_tap_config_value(2)) return;
     for (int i = 0; i < MAX_HT_TRACKERS; i++) {
         if (ht_trackers[i].state == HT_STATE_PRESSED &&
             (ht_trackers[i].row != except_row || ht_trackers[i].col != except_col)) {
@@ -112,7 +109,7 @@ bool hold_tap_process_event(uint8_t row, uint8_t col, uint32_t key, bool pressed
         return false;
 
     uint32_t hold, tap; uint8_t ms;
-    if (!ht_decode(key, &hold, &tap, &ms)) return true;
+    if (pressed && !ht_decode(key, &hold, &tap, &ms)) return true;
     TickType_t now = xTaskGetTickCount();
 
     if (pressed) {
@@ -120,54 +117,31 @@ bool hold_tap_process_event(uint8_t row, uint8_t col, uint32_t key, bool pressed
         // If the exact same Hold-Tap key was recently tapped and released within QUICK_TAP_TERM,
         // treat this press as a continuous tap hold (repeating the tap keycode).
         uint16_t quick_tap_ms = hold_tap_config_value(3);
-        if (s_last_release.valid &&
-            quick_tap_ms &&
-            s_last_release.row == row &&
-            s_last_release.col == col &&
-            s_last_release.keycode == key &&
-            (now - s_last_release.release_time) <= pdMS_TO_TICKS(quick_tap_ms)) {
-
-            s_last_release.valid = false;
-            for (int i = 0; i < MAX_HT_TRACKERS; i++) {
-                if (ht_trackers[i].state == HT_STATE_IDLE) {
-                    ht_trackers[i] = (HTTracker){.row = row,
-                                                 .col = col,
-                                                 .keycode = key,
-                                                 .press_time = now,
-                                                 .timeout_ticks = 0,
-                                                 .state = HT_STATE_REPEAT};
-                    send_tap_action(key, true);
-                    return true;
-                }
-            }
-        }
-        s_last_release.valid = false;
-
-        for (int i = 0; i < MAX_HT_TRACKERS; i++) {
-            if (ht_trackers[i].state == HT_STATE_IDLE) {
-                ht_trackers[i] = (HTTracker){.row = row,
-                                             .col = col,
-                                             .keycode = key,
-                                             .press_time = now,
-                                             .timeout_ticks = pdMS_TO_TICKS(ms ? ms : hold_tap_config_value(0)),
-                                             .state = HT_STATE_PRESSED};
-                s_active_ht_count++;
-                break;
-            }
+        bool repeat=s_last_release.valid && quick_tap_ms &&
+            s_last_release.row==row && s_last_release.col==col && s_last_release.keycode==key &&
+            (now-s_last_release.release_time)<=pdMS_TO_TICKS(quick_tap_ms);
+        s_last_release.valid=false;
+        for(int i=0;i<MAX_HT_TRACKERS;++i) if(ht_trackers[i].state==HT_STATE_IDLE) {
+            ht_trackers[i]=(HTTracker){.row=row,.col=col,.keycode=key,.press_time=now,
+                .timeout_ticks=repeat ? 0 : pdMS_TO_TICKS(ms ? ms : hold_tap_config_value(0)),
+                .state=repeat ? HT_STATE_REPEAT : HT_STATE_PRESSED};
+            if(repeat) send_tap_action(tap,true); else ++s_active_ht_count;
+            break;
         }
     } else {
         for (int i = 0; i < MAX_HT_TRACKERS; i++) {
             if (ht_trackers[i].state != HT_STATE_IDLE && ht_trackers[i].row == row && ht_trackers[i].col == col) {
 
+                if(!ht_decode(ht_trackers[i].keycode,&hold,&tap,&ms)) return true;
                 if (ht_trackers[i].state == HT_STATE_REPEAT) {
-                    send_tap_action(ht_trackers[i].keycode, false);
+                    send_tap_action(tap, false);
                     s_last_release.valid = false;
                 } else if (ht_trackers[i].state == HT_STATE_PRESSED) {
                     if (s_active_ht_count > 0) {
                         s_active_ht_count--;
                     }
-                    send_tap_action(ht_trackers[i].keycode, true);
-                    send_tap_action(ht_trackers[i].keycode, false);
+                    send_tap_action(tap, true);
+                    send_tap_action(tap, false);
 
                     // Record tap release for potential quick-tap repeat
                     s_last_release.row = row;
@@ -176,7 +150,7 @@ bool hold_tap_process_event(uint8_t row, uint8_t col, uint32_t key, bool pressed
                     s_last_release.release_time = now;
                     s_last_release.valid = true;
                 } else if (ht_trackers[i].state == HT_STATE_HOLD) {
-                    send_hold_action(ht_trackers[i].keycode, false);
+                    send_action(hold,false);
                     s_last_release.valid = false;
                 }
                 ht_trackers[i].state = HT_STATE_IDLE;

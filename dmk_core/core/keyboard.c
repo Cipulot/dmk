@@ -180,6 +180,10 @@ static void process_matrix_action(uint8_t row, uint8_t col, uint32_t key, bool p
         return;
     }
 
+    // Ordinary HID keys cannot be macros/MIDI/layer actions. Keep module
+    // interception first; One-Shot and permissive HT were handled by caller.
+    if (key < 0xC0 || (key >= 0xE0 && key <= 0xE7)) goto send_hid;
+
     // 1. Process MIDI keycodes (notes, CC, pitch bend, octave changes)
     if (dmk_midi_process_keycode(key, pressed)) {
         return;
@@ -259,6 +263,7 @@ static void process_matrix_action(uint8_t row, uint8_t col, uint32_t key, bool p
         return;
     }
 
+send_hid:
     // 12. Standard HID Keycode
 #ifdef MATRIX_REPORT_BATCH
     if (batched && key < 0xe0) {
@@ -321,7 +326,7 @@ void keyboard_check(void) {
     TickType_t r;
     if (hold_tap_has_active() && (r = hold_tap_check_timeouts(now)) < next_deadline)
         next_deadline = r;
-    if (oneshot_has_active() && (r = oneshot_check_timeouts(now)) < next_deadline)
+    if ((r = oneshot_check_timeouts(now)) < next_deadline)
         next_deadline = r;
     if (combos_has_active() && (r = combos_check_timeouts(now)) < next_deadline)
         next_deadline = r;
@@ -333,10 +338,9 @@ void keyboard_check(void) {
     if ((r = encoder_check_timeouts(now)) < next_deadline)
         next_deadline = r;
 #endif
-    if ((r = led_check_timeouts(now)) < next_deadline)
-        next_deadline = r;
-
-    led_update(now);
+    r = led_check_timeouts(now);
+    if(r <= 1) { led_update(now); r=led_check_timeouts(now); }
+    if(r<next_deadline) next_deadline=r;
     keyboard_platform_tick(now);
     if ((r = keyboard_platform_timeout()) < next_deadline) next_deadline = r;
 

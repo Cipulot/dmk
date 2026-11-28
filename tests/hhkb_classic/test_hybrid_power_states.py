@@ -33,6 +33,7 @@ static bool hhkb_hybrid_led_override(unsigned i,uint32_t now,bool *on){
  (void)i;(void)now;if(!sleeping && powered)return false;*on=false;return true;
 }
 '''
+        code += 'static bool indicator_valid;\nstatic TickType_t indicator_updated;\nstatic bool indicator_inputs_changed(void){return true;}\nstatic TickType_t keyboard_platform_timeout(void){return 250;}\n'
         code += function(source, 'void keyboard_platform_tick(')
         code += r'''
 int main(void){

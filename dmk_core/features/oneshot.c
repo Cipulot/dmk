@@ -102,9 +102,6 @@ bool oneshot_has_active(void) {
 }
 
 TickType_t oneshot_check_timeouts(TickType_t now) {
-    if (!oneshot_has_active()) {
-        return portMAX_DELAY;
-    }
     TickType_t min_remaining = portMAX_DELAY;
     const TickType_t timeout_ticks = pdMS_TO_TICKS(ONESHOT_TIMEOUT);
 
