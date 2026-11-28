@@ -156,37 +156,27 @@ Model ID (6), version (4), trailing 0xFF (6)
 
 ## 3. Flash and RAM usage
 
-The [HHKB linker layout](../../../../platforms/stm32l072/stm32l072_bank2.ld) provides **65,536 bytes of Bank 2 Flash** at `0x08010000–0x0801FFFF` and **20,480 bytes of SRAM**. These measurements use code commit `3e48c218`, built on 2026-11-24 with **Arm GNU Toolchain 15.3.Rel2 / GCC 15.3.1**, `-Os`, no LTO, and the default configuration including compressed EEPROM storage and SW5+SW6 recovery. All sizes are bytes.
+The [HHKB linker layout](../../../../platforms/stm32l072/stm32l072_bank2.ld) provides **65,536 bytes of Bank 2 Flash** at `0x08010000–0x0801FFFF` and **20,480 bytes of SRAM**. These measurements use code commit `8bedc953`, built on 2026-11-28 with **Arm GNU Toolchain 15.3.Rel2 / GCC 15.3.1**, and the default configuration including compressed EEPROM storage, PFU channel (Hybrid), `SW1` Paranoid Mode, `DF`/`TO`, and `SW5+SW6` recovery. All sizes are bytes.
 
 ### HHKB Classic
 
-| Variant | Flash used / 65,536 B | Flash free | RAM allocated / 20,480 B | RAM unallocated |
+| Variant | Flash used / 65,536 B | Flash free | RAM used (`.data+.bss`) / 20,480 B | RAM free |
 | --- | ---: | ---: | ---: | ---: |
-| ANSI: Classic / Classic Type-S | 51,320 (78.31%) | 14,216 | 18,080 (88.28%) | 2,400 |
-| JIS: Classic Type-S | 51,088 (77.95%) | 14,448 | 18,632 (90.98%) | 1,848 |
-
-RAM section breakdown:
-
-- **ANSI:** `.data` 2,536 + `.bss` 13,492 + `._user_heap_stack` 2,052 = **18,080**.
-- **JIS:** `.data` 2,504 + `.bss` 14,080 + `._user_heap_stack` 2,048 = **18,632**.
+| ANSI: Classic / Classic Type-S | 52,132 (79.55%) | 13,404 | 15,408 (75.23%) | 5,072 |
+| JIS: Classic Type-S | 52,468 (80.06%) | 13,068 | 15,992 (78.09%) | 4,488 |
 
 Classic and Classic Type-S ANSI were built separately and have identical memory usage.
 
 ### HHKB Hybrid
 
-Includes the Nordic SPI transport, battery telemetry, and sleep/OFF state machines. Type-S uses the same build.
+Includes the Nordic SPI transport, PFU channel, battery telemetry, and sleep/OFF state machines. Type-S uses the same build.
 
-| Variant | Flash used / 65,536 B | Flash free | RAM allocated / 20,480 B | RAM unallocated |
+| Variant | Flash used / 65,536 B | Flash free | RAM used (`.data+.bss`) / 20,480 B | RAM free |
 | --- | ---: | ---: | ---: | ---: |
-| ANSI: Hybrid / Type-S | 62,760 (95.76%) | 2,776 | 18,328 (89.49%) | 2,152 |
-| JIS: Hybrid / Type-S | 62,560 (95.46%) | 2,976 | 18,888 (92.23%) | 1,592 |
+| ANSI: Hybrid / Type-S | 64,100 (97.81%) | 1,436 | 15,880 (77.54%) | 4,600 |
+| JIS: Hybrid / Type-S | 64,540 (98.48%) | 996 | 16,472 (80.43%) | 4,008 |
 
-RAM section breakdown:
-
-- **ANSI:** `.data` 2,592 + `.bss` 13,688 + `._user_heap_stack` 2,048 = **18,328**.
-- **JIS:** `.data` 2,560 + `.bss` 14,276 + `._user_heap_stack` 2,052 = **18,888**.
-
-Hybrid ANSI now has **2,776 bytes** of Bank 2 Flash remaining; JIS has **2,976 bytes**. Compiler, feature flags and firmware-version strings can change these values.
+Hybrid ANSI has **1,436 bytes** of Bank 2 Flash remaining; JIS has **996 bytes**. Compiler, feature flags and firmware-version strings can change these values.
 
 ### Memory and idle-work optimizations
 
