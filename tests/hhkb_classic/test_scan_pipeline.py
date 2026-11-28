@@ -90,10 +90,10 @@ static void __set_PRIMASK(unsigned p){primask=p;}
 static void scan_wait_since(unsigned start,unsigned us){
  (void)start;
  if(primask) {
-   assert(us==3 || us==25);
+   assert(us==((adc.CFGR1 & ADC_CFGR1_AUTOFF) ? 25 : 2));
    assert(!converting && !(adc.CR & ADC_CR_ADSTART));
  } else {
-   assert((us==2 || us==4) && !converting);
+   assert(us==((adc.CFGR1 & ADC_CFGR1_AUTOFF) ? 4 : 2) && !converting);
    assert(GPIOC->BSRR==(1u<<8));
  }
  ++timer.CNT;

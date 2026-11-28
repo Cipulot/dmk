@@ -227,7 +227,7 @@ bool hhkb_matrix_scan_raw(matrix_row_t current_matrix[]) {
 
     bool changed = false;
     bool adc_autoff = (ADC1->CFGR1 & ADC_CFGR1_AUTOFF) != 0;
-    uint16_t row_settle_us = adc_autoff ? 25 : 3;
+    uint16_t row_settle_us = adc_autoff ? 25 : 2;
     static const uint16_t row_pins[MATRIX_ROWS] = HHKB_ROW_BITS;
     static const uint32_t col_mux_bsrr[MATRIX_COLS] = {
         0x70000000, 0x60001000, 0x50002000, 0x40003000,
@@ -296,13 +296,14 @@ bool hhkb_matrix_scan_raw(matrix_row_t current_matrix[]) {
             if (!(populated[col] & (1U << row))) continue;
 #endif
             // Overlap all previous-key work with C57 discharge, not the row strobe.
-            // settle_start is captured right after row release / mux selection,
-            // so waiting 4 us since settle_start guarantees >=2 us of discharge.
+            // USB times the pulse from PC8 assertion. AUTOFF retains the
+            // existing timing relative to row release or mux selection.
             GPIOC->BSRR = (1U << 8);
+            uint16_t discharge_start = adc_autoff ? settle_start : (uint16_t)TIM2->CNT;
             if (__builtin_expect(debug_topre, 0)) scan_prepare_pending(&pending, &prepared, true);
             changed |= scan_process_pending(&pending, &prepared, cache_all_valid, current_matrix);
             if (__builtin_expect(debug_topre, 0)) scan_report_pending(&pending, false, false, true, &capture_failed);
-            scan_wait_since(settle_start, 4);
+            scan_wait_since(discharge_start, adc_autoff ? 4 : 2);
 
             uint32_t saved_primask = __get_PRIMASK();
             __disable_irq();
