@@ -123,9 +123,7 @@ int main(void){
 
     def test_adc_timeout_does_not_return_stale_dr(self):
         source = (ROOT / 'keyboards/hhkb/modules/ec/classic_matrix.c').read_text()
-        # Model write-one-to-clear ISR semantics in the memory-backed register mock.
-        sample = function(source, 'static inline bool adc_start_sample(').replace(
-            'ADC1->ISR = ADC_ISR_EOC;', 'ADC1->ISR = 0;')
+        sample = function(source, 'static inline bool adc_prepare_sample(')
         sample += function(source, 'static inline uint16_t adc_finish_sample(')
         self.run_c(r'''
 #include <assert.h>
@@ -140,9 +138,9 @@ static struct {uint32_t CR,ISR,CFGR1,DR;} adc;
 ''' + sample + r'''
 int main(void){
  adc.DR=1234;adc.CR=ADC_CR_ADSTP;
- assert(!adc_start_sample());
- adc.CR=0;adc.ISR=ADC_ISR_EOC; // Stale completion must also be discarded.
- assert(adc_start_sample());assert(adc_finish_sample()==UINT16_MAX);
+ assert(!adc_prepare_sample());
+ adc.CR=0;adc.ISR=0;
+ assert(adc_prepare_sample());assert(adc_finish_sample()==UINT16_MAX);
  adc.ISR=ADC_ISR_EOC;assert(adc_finish_sample()==1234);
 }
 ''')

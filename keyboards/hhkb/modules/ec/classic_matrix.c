@@ -29,12 +29,10 @@ static inline void scan_delay_us(uint16_t us) {
 
 static bool s_oversampling_applied = false;
 
-static inline bool adc_start_sample(void) {
+static inline bool adc_prepare_sample(void) {
     uint32_t timeout = 5000;
     while ((ADC1->CR & ADC_CR_ADSTP) && --timeout);
     if (!timeout) return false;
-    ADC1->ISR = ADC_ISR_EOC; // Discard completion left by a previously timed-out sample.
-    ADC1->CR |= ADC_CR_ADSTART;
     return true;
 }
 
@@ -312,9 +310,14 @@ bool hhkb_matrix_scan_raw(matrix_row_t current_matrix[]) {
 
             // Drive row strobe active (LOW)
             GPIOB->BRR = row_pins[row];
-            scan_delay_us(row_settle_us);
-
-            bool started = adc_start_sample();
+            uint16_t row_start = (uint16_t)TIM2->CNT;
+            // Prepare the ADC while the analog signal settles.
+            bool started = adc_prepare_sample();
+            scan_wait_since(row_start, row_settle_us);
+            if (started) {
+                ADC1->ISR = ADC_ISR_EOC; // Discard completion from a previous timeout.
+                ADC1->CR |= ADC_CR_ADSTART;
+            }
             // Preserve the existing analog IRQ policy. Battery AUTOFF already
             // allows Nordic SPI after triggering; USB stays masked until EOC.
             if (adc_autoff) __set_PRIMASK(saved_primask);

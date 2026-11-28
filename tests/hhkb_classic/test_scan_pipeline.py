@@ -41,7 +41,9 @@ static struct {uint32_t BSRR,BRR;} b,c,d;
 #define GPIOB (&b)
 #define GPIOC (&c)
 #define GPIOD (&d)
-static struct {uint32_t CFGR1;} adc;
+#define ADC_CR_ADSTART 1u
+#define ADC_ISR_EOC 1u
+static struct {uint32_t CFGR1, CR, ISR;} adc;
 #define ADC1 (&adc)
 static struct {uint32_t APB1ENR;} rcc={1};
 #define RCC (&rcc)
@@ -85,19 +87,29 @@ static bool hhkb_get_debug_flag(unsigned f){assert(f==1);return debug;}
 static unsigned __get_PRIMASK(void){return primask;}
 static void __disable_irq(void){primask=1;}
 static void __set_PRIMASK(unsigned p){primask=p;}
-static void scan_wait_since(unsigned start,unsigned us){(void)start;assert((us==2 || us==4) && !primask && !converting);assert(GPIOC->BSRR==(1u<<8));++timer.CNT;}
-static void scan_delay_us(unsigned us){assert(primask && (us==2 || us==3 || us==25));++timer.CNT;}
-static bool adc_start_sample(void){
+static void scan_wait_since(unsigned start,unsigned us){
+ (void)start;
+ if(primask) {
+   assert(us==3 || us==25);
+   assert(!converting && !(adc.CR & ADC_CR_ADSTART));
+ } else {
+   assert((us==2 || us==4) && !converting);
+   assert(GPIOC->BSRR==(1u<<8));
+ }
+ ++timer.CNT;
+}
+static __attribute__((unused)) void scan_delay_us(unsigned us){assert(primask && (us==2 || us==3 || us==25));++timer.CNT;}
+static bool adc_prepare_sample(void){
  assert(primask && !converting);assert(starts<KEYS);
  static const unsigned bits[MATRIX_ROWS]=HHKB_ROW_BITS;
  assert(GPIOB->BRR==bits[rows[starts]]);
- next_index=starts++;converting=next_index!=fault;
- return converting;
+ next_index=starts++;
+ return next_index!=fault;
 }
 static uint16_t adc_finish_sample(void){
- assert(converting);assert(primask==!(adc.CFGR1 & ADC_CFGR1_AUTOFF));
+ assert(adc.CR & ADC_CR_ADSTART);assert(adc.ISR==ADC_ISR_EOC);assert(primask==!(adc.CFGR1 & ADC_CFGR1_AUTOFF));
  if(next_index){unsigned col=columns[next_index-1],row=rows[next_index-1];assert(s_rt_keys[col][row].down==reference[col][row].down);}
- converting=false;++finishes;return raw[next_index];
+ adc.CR &= ~ADC_CR_ADSTART;++finishes;return raw[next_index];
 }
 static void hhkb_cal_accumulate_baseline(unsigned col,unsigned row,unsigned val){
  assert(!primask && !converting && GPIOC->BRR==(1u<<7));assert(finishes==KEYS-(fault<KEYS));while(reported_index==fault)++reported_index;assert(col==columns[reported_index] && row==rows[reported_index]);
